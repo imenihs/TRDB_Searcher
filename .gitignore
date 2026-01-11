@@ -1,0 +1,6 @@
+.env
+/tr-book
+/トランジスタ技術
+/vendor
+composer.lock
+

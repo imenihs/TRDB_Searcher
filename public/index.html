@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TR 収録内容サーチ</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div id="app" class="app" v-cloak>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Transistor Gijutsu Archive</p>
+          <h1>トラ技収録内容サーチ</h1>
+          <p class="lead">
+            トランジスタ技術収録内容を検索。タイトル・著者・年月レンジで絞り込み。
+          </p>
+        </div>
+        <div class="stat">
+          <div class="stat-num">{{ meta.total }}</div>
+          <div class="stat-label">matches</div>
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="field">
+          <label>タイトル</label>
+          <input
+            v-model="query.title"
+            type="text"
+            placeholder="例: マイコン & ARM | FPGA"
+          />
+          <div class="field-row">
+            <select v-model="query.titleMode">
+              <option value="keyword">キーワード</option>
+              <option value="regex">正規表現</option>
+            </select>
+            <span class="hint">空白=AND、&amp; | ! で AND/OR/NOT</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>著者</label>
+          <input
+            v-model="query.author"
+            type="text"
+            placeholder="例: 山田 | 佐藤 !高橋"
+          />
+          <div class="field-row">
+            <select v-model="query.authorMode">
+              <option value="keyword">キーワード</option>
+              <option value="regex">正規表現</option>
+            </select>
+            <span class="hint">正規表現モードで高度な検索</span>
+          </div>
+        </div>
+
+        <div class="field range">
+          <label>年月レンジ</label>
+          <div class="range-grid">
+            <div class="range-block">
+              <span class="range-label">From</span>
+              <div class="range-row">
+                <input v-model="query.fromYear" type="number" min="1950" max="2100" placeholder="年" />
+                <input v-model="query.fromMonth" type="number" min="1" max="12" placeholder="月" />
+              </div>
+            </div>
+            <div class="range-block">
+              <span class="range-label">To</span>
+              <div class="range-row">
+                <input v-model="query.toYear" type="number" min="1950" max="2100" placeholder="年" />
+                <input v-model="query.toMonth" type="number" min="1" max="12" placeholder="月" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-footer">
+          <button type="button" class="btn" @click="runSearch(true)" :disabled="loading">
+            検索
+          </button>
+          <span class="status" v-if="loading">検索中…</span>
+          <span class="status" v-else>最終データ：{{ lastDataLabel }}</span>
+        </div>
+      </section>
+
+      <section class="results">
+        <div class="results-head">
+          <div class="results-title">検索結果</div>
+          <div class="results-meta">{{ meta.total }} 件 / {{ meta.returned }} 表示</div>
+        </div>
+
+        <div class="error" v-if="errors.length">
+          <div v-for="err in errors" :key="err">{{ err }}</div>
+        </div>
+
+        <div class="cards">
+          <article class="card" v-for="(item, index) in items" :key="index">
+            <div class="card-top">
+              <div class="card-date">{{ formatDate(item.year, item.month) }}</div>
+              <div class="card-type">{{ item.type }}</div>
+            </div>
+            <h3 class="card-title">{{ item.title }}</h3>
+            <p class="card-subtitle" v-if="item.subtitle">{{ item.subtitle }}</p>
+            <div class="card-meta">
+              <span>{{ item.author || '著者不明' }}</span>
+              <span>pp. {{ item.start_page }} / {{ item.page_count }}</span>
+            </div>
+            <div class="card-actions" v-if="item.year && item.month">
+              <a
+                class="card-link"
+                :href="pdfLink(item.year, item.month)"
+                target="_blank"
+                rel="noopener"
+              >
+                PDFを開く
+              </a>
+            </div>
+          </article>
+        </div>
+
+        <div class="empty" v-if="!loading && items.length === 0">
+          一致するデータがありません。
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
