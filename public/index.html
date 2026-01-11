@@ -15,7 +15,7 @@
           <p class="eyebrow">Transistor Gijutsu Archive</p>
           <h1>トラ技収録内容サーチ</h1>
           <p class="lead">
-            トランジスタ技術収録内容を検索。タイトル・著者・年月レンジで絞り込み。
+            トランジスタ技術収録内容を検索。タイトル・著者・年月範囲で絞り込み。
           </p>
         </div>
         <div class="stat">
@@ -58,7 +58,7 @@
         </div>
 
         <div class="field range">
-          <label>年月レンジ</label>
+          <label>年月範囲</label>
           <div class="range-grid">
             <div class="range-block">
               <span class="range-label">From</span>
@@ -106,12 +106,12 @@
             <p class="card-subtitle" v-if="item.subtitle">{{ item.subtitle }}</p>
             <div class="card-meta">
               <span>{{ item.author || '著者不明' }}</span>
-              <span>pp. {{ item.start_page }} / {{ item.page_count }}</span>
+              <span>{{ formatPages(item.start_page, item.page_count) }}</span>
             </div>
             <div class="card-actions" v-if="item.year && item.month">
               <a
                 class="card-link"
-                :href="pdfLink(item.year, item.month)"
+                :href="pdfLink(item.year, item.month, item.start_page)"
                 target="_blank"
                 rel="noopener"
               >

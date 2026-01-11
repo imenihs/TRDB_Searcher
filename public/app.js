@@ -8,8 +8,8 @@ createApp({
         titleMode: 'keyword',
         author: '',
         authorMode: 'keyword',
-        fromYear: '',
-        fromMonth: '',
+        fromYear: '1999',
+        fromMonth: '1',
         toYear: '',
         toMonth: '',
       },
@@ -92,7 +92,7 @@ createApp({
 
       try {
         const params = this.buildParams();
-        const response = await fetch(`api/search?${params.toString()}`, {
+        const response = await fetch(`public/api/search?${params.toString()}`, {
           signal: this.aborter.signal,
         });
         const data = await response.json();
@@ -107,19 +107,42 @@ createApp({
         this.loading = false;
       }
     },
+    formatPages(startPage, pageCount) {
+      const start = parseInt(startPage, 10);
+      const count = parseInt(pageCount, 10);
+      if (!Number.isFinite(start) || start <= 0) {
+        return 'P.--- to ---';
+      }
+      const end = Number.isFinite(count) && count > 0 ? start + count : start;
+      return `P.${start} to ${end}`;
+    },
     formatDate(year, month) {
       if (!year || !month) {
         return '----/--';
       }
       return `${year}/${String(month).padStart(2, '0')}`;
     },
-    pdfLink(year, month) {
+    pdfOffset(year, month) {
+      const offsets = this.meta.pdf_offsets || {};
+      const fallback = Number.isFinite(this.meta.pdf_offset_default) ? this.meta.pdf_offset_default : 0;
+      if (!year || !month) {
+        return fallback;
+      }
+      const key = `${year}-${String(month).padStart(2, '0')}`;
+      const value = offsets[key];
+      return Number.isFinite(value) ? value : fallback;
+    },
+    pdfLink(year, month, startPage) {
       if (!year || !month) {
         return '';
       }
       const ym = `${year}${String(month).padStart(2, '0')}`;
       const base = this.meta.pdf_base || '/tr-book';
-      return `${base}/${year}/TR${ym}.PDF`;
+      const page = parseInt(startPage, 10);
+      const offset = this.pdfOffset(year, month);
+      const target = Number.isFinite(page) ? page + offset : NaN;
+      const pageAnchor = Number.isFinite(target) && target > 0 ? `#page=${target}` : '';
+      return `${base}/${year}/TR${ym}.PDF${pageAnchor}`;
     },
   },
 }).mount('#app');

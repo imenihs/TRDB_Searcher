@@ -9,9 +9,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Factory\AppFactory;
 
 const TR_ENCODING = 'CP932';
-const PROJECT_ROOT = __DIR__ . '/../../';
+define('PROJECT_ROOT', findProjectRoot());
 
-$env = loadEnv(PROJECT_ROOT . '.env');
+$envPath = rtrim(PROJECT_ROOT, '/') . '/.env';
+$env = loadEnv($envPath);
 
 $app = AppFactory::create();
 $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
@@ -20,10 +21,53 @@ $app->setBasePath($basePath);
 $app->addRoutingMiddleware();
 $app->addErrorMiddleware(true, true, true);
 
-$app->get('/search', function (Request $request, Response $response): Response {
+$app->get('/search', function (Request $request, Response $response) use ($envPath): Response {
     $params = $request->getQueryParams();
     $dataPath = resolvePath(getEnvValue('TR_DATA_PATH', 'tr-book/TRDB/TR.txt'));
     $pdfBasePath = getEnvValue('TR_PDF_BASE', '/tr-book');
+    $modPath = resolvePath(getEnvValue('TR_PDF_MOD_PATH', 'tr-book/TRDB/TRmod.txt'));
+    $offsetData = loadPdfOffsetsFromMod($modPath);
+    $offsets = $offsetData['offsets'];
+    $offsetDefault = $offsetData['default'];
+    $debug = (string) ($params['debug'] ?? '') === '1';
+    $debugInfo = null;
+    if ($debug) {
+        $trBookPath = rtrim(PROJECT_ROOT, '/') . '/tr-book';
+        $linkTarget = is_link($trBookPath) ? readlink($trBookPath) : null;
+        $sharePath = '/share';
+        $shareFilePath = '/share/file';
+        $debugInfo = [
+            'project_root' => rtrim(PROJECT_ROOT, '/'),
+            'env_path' => $envPath,
+            'env_exists' => is_file($envPath),
+            'data_path' => $dataPath,
+            'realpath' => realpath($dataPath) ?: null,
+            'is_file' => is_file($dataPath),
+            'is_readable' => is_readable($dataPath),
+            'file_exists' => file_exists($dataPath),
+            'dir_exists' => is_dir(dirname($dataPath)),
+            'dir_readable' => is_readable(dirname($dataPath)),
+            'tr_book_path' => $trBookPath,
+            'tr_book_is_link' => is_link($trBookPath),
+            'tr_book_link_target' => $linkTarget,
+            'tr_book_realpath' => realpath($trBookPath) ?: null,
+            'link_target_exists' => $linkTarget ? file_exists($linkTarget) : null,
+            'link_target_readable' => $linkTarget ? is_readable($linkTarget) : null,
+            'link_target_dir_exists' => $linkTarget ? is_dir($linkTarget) : null,
+            'share_exists' => file_exists($sharePath),
+            'share_is_dir' => is_dir($sharePath),
+            'share_readable' => is_readable($sharePath),
+            'share_file_exists' => file_exists($shareFilePath),
+            'share_file_is_dir' => is_dir($shareFilePath),
+            'share_file_readable' => is_readable($shareFilePath),
+            'php_sapi' => PHP_SAPI,
+            'php_version' => PHP_VERSION,
+            'doc_root' => (string)($_SERVER['DOCUMENT_ROOT'] ?? ''),
+            'script_filename' => (string)($_SERVER['SCRIPT_FILENAME'] ?? ''),
+            'cwd' => getcwd() ?: null,
+            'open_basedir' => (string) ini_get('open_basedir'),
+        ];
+    }
 
     if (!is_file($dataPath)) {
         $payload = [
@@ -36,24 +80,31 @@ $app->get('/search', function (Request $request, Response $response): Response {
                 'limit' => 0,
                 'last_data' => null,
                 'pdf_base' => $pdfBasePath,
+            'pdf_offsets' => $offsets,
+            'pdf_offset_default' => $offsetDefault,
+                'pdf_offset_default' => $offsetDefault,
+                'pdf_offsets' => $offsets,
             ],
         ];
+        if ($debugInfo !== null) {
+            $payload['debug'] = $debugInfo;
+        }
         $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withStatus(500);
     }
 
-    $titleQuery = trim((string)($params['title'] ?? ''));
-    $titleMode = (string)($params['title_mode'] ?? 'keyword');
-    $authorQuery = trim((string)($params['author'] ?? ''));
-    $authorMode = (string)($params['author_mode'] ?? 'keyword');
+    $titleQuery = trim((string) ($params['title'] ?? ''));
+    $titleMode = (string) ($params['title_mode'] ?? 'keyword');
+    $authorQuery = trim((string) ($params['author'] ?? ''));
+    $authorMode = (string) ($params['author_mode'] ?? 'keyword');
 
-    $fromYear = (int)($params['from_year'] ?? 0);
-    $fromMonth = (int)($params['from_month'] ?? 0);
-    $toYear = (int)($params['to_year'] ?? 0);
-    $toMonth = (int)($params['to_month'] ?? 0);
+    $fromYear = (int) ($params['from_year'] ?? 0);
+    $fromMonth = (int) ($params['from_month'] ?? 0);
+    $toYear = (int) ($params['to_year'] ?? 0);
+    $toMonth = (int) ($params['to_month'] ?? 0);
 
-    $limit = (int)($params['limit'] ?? 200);
-    $offset = (int)($params['offset'] ?? 0);
+    $limit = (int) ($params['limit'] ?? 200);
+    $offset = (int) ($params['offset'] ?? 0);
     $limit = max(1, min(1000, $limit));
     $offset = max(0, $offset);
 
@@ -62,7 +113,7 @@ $app->get('/search', function (Request $request, Response $response): Response {
         return trim(($record['title'] ?? '') . ' ' . ($record['subtitle'] ?? ''));
     }, 'title');
     $authorChecker = buildChecker($authorQuery, $authorMode, $errors, static function (array $record): string {
-        return (string)($record['author'] ?? '');
+        return (string) ($record['author'] ?? '');
     }, 'author');
 
     $range = buildRange($fromYear, $fromMonth, $toYear, $toMonth);
@@ -92,14 +143,14 @@ $app->get('/search', function (Request $request, Response $response): Response {
             }
 
             $record = [
-                'year' => (int)($row[0] ?? 0),
-                'month' => (int)($row[1] ?? 0),
-                'title' => (string)($row[2] ?? ''),
-                'subtitle' => (string)($row[3] ?? ''),
-                'type' => (string)($row[4] ?? ''),
-                'start_page' => (string)($row[5] ?? ''),
-                'page_count' => (string)($row[6] ?? ''),
-                'author' => (string)($row[7] ?? ''),
+                'year' => (int) ($row[0] ?? 0),
+                'month' => (int) ($row[1] ?? 0),
+                'title' => (string) ($row[2] ?? ''),
+                'subtitle' => (string) ($row[3] ?? ''),
+                'type' => (string) ($row[4] ?? ''),
+                'start_page' => (string) ($row[5] ?? ''),
+                'page_count' => (string) ($row[6] ?? ''),
+                'author' => (string) ($row[7] ?? ''),
             ];
 
             if ($record['year'] > 0 && $record['month'] > 0) {
@@ -142,6 +193,9 @@ $app->get('/search', function (Request $request, Response $response): Response {
         ],
         'items' => $items,
     ];
+    if ($debugInfo !== null) {
+        $payload['debug'] = $debugInfo;
+    }
 
     if (!empty($errors)) {
         $payload['errors'] = $errors;
@@ -152,6 +206,49 @@ $app->get('/search', function (Request $request, Response $response): Response {
 });
 
 $app->run();
+
+function loadPdfOffsetsFromMod(string $path, int $defaultStart = 4): array
+{
+    $default = 1 - $defaultStart;
+    if (!is_file($path)) {
+        return ['offsets' => [], 'default' => $default];
+    }
+
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return ['offsets' => [], 'default' => $default];
+    }
+
+    $offsets = [];
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        $parts = preg_split('/\s+/', $line);
+        if (!$parts || count($parts) < 2) {
+            continue;
+        }
+        $ym = $parts[0];
+        $startPage = $parts[1];
+        if (!preg_match('/^\d{6}$/', $ym)) {
+            continue;
+        }
+        if (!is_numeric($startPage)) {
+            continue;
+        }
+        $year = substr($ym, 0, 4);
+        $month = substr($ym, 4, 2);
+        $key = $year . '-' . $month;
+        $startPage = (int)$startPage;
+        $offset = 1 - $startPage;
+        if (!array_key_exists($key, $offsets) || $offset > $offsets[$key]) {
+            $offsets[$key] = $offset;
+        }
+    }
+
+    return ['offsets' => $offsets, 'default' => $default];
+}
 
 function loadEnv(string $path): array
 {
@@ -186,13 +283,38 @@ function loadEnv(string $path): array
     return $values;
 }
 
+function findProjectRoot(): string
+{
+    $candidates = [
+        __DIR__,
+        realpath(__DIR__) ?: __DIR__,
+        dirname($_SERVER['SCRIPT_FILENAME'] ?? __FILE__),
+    ];
+
+    foreach ($candidates as $startDir) {
+        $dir = $startDir;
+        for ($i = 0; $i < 6; $i++) {
+            if (is_file($dir . '/.env') || is_file($dir . '/composer.json')) {
+                return $dir;
+            }
+            $parent = dirname($dir);
+            if ($parent === $dir) {
+                break;
+            }
+            $dir = $parent;
+        }
+    }
+
+    return __DIR__ . '/../..';
+}
+
 function getEnvValue(string $key, string $default): string
 {
     $value = $_ENV[$key] ?? getenv($key);
     if ($value === false || $value === null || $value === '') {
         return $default;
     }
-    return (string)$value;
+    return (string) $value;
 }
 
 function resolvePath(string $path): string
@@ -203,7 +325,7 @@ function resolvePath(string $path): string
     if ($path[0] === '/' || preg_match('/^[A-Za-z]:\\\\/', $path) === 1) {
         return $path;
     }
-    return PROJECT_ROOT . ltrim($path, '/');
+    return rtrim(PROJECT_ROOT, '/') . '/' . ltrim($path, '/');
 }
 
 function buildRange(int $fromYear, int $fromMonth, int $toYear, int $toMonth): ?array
@@ -434,5 +556,5 @@ function evalRpn(array $rpn, callable $termCheck): bool
         }
     }
 
-    return (bool)array_pop($stack);
+    return (bool) array_pop($stack);
 }
