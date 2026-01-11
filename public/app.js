@@ -1,6 +1,7 @@
-const { createApp } = Vue;
+function initApp() {
+  const { createApp } = Vue;
 
-createApp({
+  createApp({
   data() {
     return {
       query: {
@@ -13,10 +14,12 @@ createApp({
         toYear: '',
         toMonth: '',
         caseSensitive: false,
+        wordMatch: false,
       },
       page: 1,
       pageInput: 1,
       pageSize: 100,
+      currentYear: new Date().getFullYear(),
       viewMode: 'card',
       auth: {
         loggedIn: false,
@@ -165,6 +168,7 @@ createApp({
         params.set('to_month', this.query.toMonth);
       }
       params.set('case_sensitive', this.query.caseSensitive ? '1' : '0');
+      params.set('word_match', this.query.wordMatch ? '1' : '0');
       if (includePaging) {
         params.set('limit', String(this.pageSize));
         params.set('offset', String((this.page - 1) * this.pageSize));
@@ -188,7 +192,11 @@ createApp({
           signal: this.aborter.signal,
         });
         const data = await response.json();
-        this.items = data.items || [];
+        this.items = (data.items || []).map((item) => ({
+          ...item,
+          file_exists: item.file_exists ?? false,
+          file_name: item.file_name ?? null,
+        }));
         this.meta = data.meta || { total: 0, returned: 0 };
         this.errors = data.errors || [];
         this.clampDateRange();
@@ -305,9 +313,9 @@ createApp({
       }
       return `${year}/${String(month).padStart(2, '0')}`;
     },
-    pdfOffset(year, month) {
-      const offsets = this.meta.pdf_offsets || {};
-      const fallback = Number.isFinite(this.meta.pdf_offset_default) ? this.meta.pdf_offset_default : 0;
+    fileOffset(year, month) {
+      const offsets = this.meta.file_offsets || {};
+      const fallback = Number.isFinite(this.meta.file_offset_default) ? this.meta.file_offset_default : 0;
       if (!year || !month) {
         return fallback;
       }
@@ -315,18 +323,27 @@ createApp({
       const value = offsets[key];
       return Number.isFinite(value) ? value : fallback;
     },
-    pdfLink(year, month, startPage, pdfName) {
+    fileLink(year, month, startPage, fileName) {
       if (!year || !month) {
         return '';
       }
       const ym = `${year}${String(month).padStart(2, '0')}`;
-      const base = 'pdf.php';
+      const base = 'file.php';
       const page = parseInt(startPage, 10);
-      const offset = this.pdfOffset(year, month);
+      const offset = this.fileOffset(year, month);
       const target = Number.isFinite(page) ? page + offset : NaN;
       const pageAnchor = Number.isFinite(target) && target > 0 ? `#page=${target}` : '';
-      const nameParam = pdfName ? `&name=${encodeURIComponent(pdfName)}` : '';
+      const nameParam = fileName ? `&name=${encodeURIComponent(fileName)}` : '';
       return `${base}?year=${year}&month=${month}${nameParam}${pageAnchor}`;
     },
   },
-}).mount('#app');
+  }).mount('#app');
+}
+
+(function boot() {
+  if (typeof window === 'undefined' || !window.Vue) {
+    setTimeout(boot, 50);
+    return;
+  }
+  initApp();
+})();

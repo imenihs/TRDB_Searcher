@@ -5,4 +5,5 @@ users.json
 /vendor
 composer.lock
 *.code-workspace
+login_rate_limit.json
 

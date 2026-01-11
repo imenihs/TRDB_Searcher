@@ -257,7 +257,7 @@ function buildRange(int $fromYear, int $fromMonth, int $toYear, int $toMonth): ?
     return ['from' => $from, 'to' => $to];
 }
 
-function buildChecker(string $query, string $mode, bool $caseSensitive, array &$errors, callable $getTarget, string $label): callable
+function buildChecker(string $query, string $mode, bool $caseSensitive, bool $wordMatch, array &$errors, callable $getTarget, string $label): callable
 {
     if ($query === '') {
         return static function (): bool {
@@ -288,17 +288,21 @@ function buildChecker(string $query, string $mode, bool $caseSensitive, array &$
 
     $rpn = toRpn($tokens);
 
-    return static function (array $record) use ($rpn, $getTarget, $caseSensitive): bool {
+    return static function (array $record) use ($rpn, $getTarget, $caseSensitive, $wordMatch): bool {
         $target = $getTarget($record);
         if (!$caseSensitive) {
             $target = mb_strtolower($target, 'UTF-8');
         }
-        return evalRpn($rpn, static function (string $term) use ($target, $caseSensitive): bool {
+        $tokens = $wordMatch ? preg_split('/[^\p{L}\p{N}_]+/u', $target, -1, PREG_SPLIT_NO_EMPTY) : [];
+        return evalRpn($rpn, static function (string $term) use ($target, $caseSensitive, $wordMatch, $tokens): bool {
             if (!$caseSensitive) {
                 $term = mb_strtolower($term, 'UTF-8');
             }
             if ($term === '') {
                 return true;
+            }
+            if ($wordMatch) {
+                return in_array($term, $tokens, true);
             }
             if ($caseSensitive) {
                 return mb_strpos($target, $term, 0, 'UTF-8') !== false;

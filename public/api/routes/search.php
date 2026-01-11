@@ -77,6 +77,8 @@ $app->get('/search', function (Request $request, Response $response) use ($envPa
                 'pdf_base' => $pdfBasePath,
                 'pdf_offsets' => $offsets,
                 'pdf_offset_default' => $offsetDefault,
+                'file_offsets' => $offsets,
+                'file_offset_default' => $offsetDefault,
             ],
         ];
         if ($debugInfo !== null) {
@@ -91,6 +93,7 @@ $app->get('/search', function (Request $request, Response $response) use ($envPa
     $authorQuery = trim((string) ($params['author'] ?? ''));
     $authorMode = (string) ($params['author_mode'] ?? 'keyword');
     $caseSensitive = ($params['case_sensitive'] ?? '0') === '1';
+    $wordMatch = ($params['word_match'] ?? '0') === '1';
 
     $fromYear = (int) ($params['from_year'] ?? 0);
     $fromMonth = (int) ($params['from_month'] ?? 0);
@@ -103,10 +106,10 @@ $app->get('/search', function (Request $request, Response $response) use ($envPa
     $offset = max(0, $offset);
 
     $errors = [];
-    $titleChecker = buildChecker($titleQuery, $titleMode, $caseSensitive, $errors, static function (array $record): string {
+    $titleChecker = buildChecker($titleQuery, $titleMode, $caseSensitive, $wordMatch, $errors, static function (array $record): string {
         return trim(($record['title'] ?? '') . ' ' . ($record['subtitle'] ?? ''));
     }, 'title');
-    $authorChecker = buildChecker($authorQuery, $authorMode, $caseSensitive, $errors, static function (array $record): string {
+    $authorChecker = buildChecker($authorQuery, $authorMode, $caseSensitive, $wordMatch, $errors, static function (array $record): string {
         return (string) ($record['author'] ?? '');
     }, 'author');
 
@@ -156,19 +159,27 @@ $app->get('/search', function (Request $request, Response $response) use ($envPa
                     $yearDir . '/DPMTR' . $ym . '_toragimmrelease.pdf',
                 ];
                 $record['pdf_exists'] = false;
+                $record['file_exists'] = false;
                 foreach ($candidates as $candidate) {
                     if (is_file($candidate)) {
                         $record['pdf_exists'] = true;
                         $record['pdf_name'] = basename($candidate);
+                        $record['file_exists'] = true;
+                        $record['file_name'] = basename($candidate);
                         break;
                     }
                 }
                 if (!isset($record['pdf_name'])) {
                     $record['pdf_name'] = null;
                 }
+                if (!isset($record['file_name'])) {
+                    $record['file_name'] = null;
+                }
             } else {
                 $record['pdf_exists'] = false;
                 $record['pdf_name'] = null;
+                $record['file_exists'] = false;
+                $record['file_name'] = null;
             }
 
             if ($record['year'] > 0 && $record['month'] > 0) {
@@ -214,6 +225,8 @@ $app->get('/search', function (Request $request, Response $response) use ($envPa
             'pdf_base' => $pdfBasePath,
             'pdf_offsets' => $offsets,
             'pdf_offset_default' => $offsetDefault,
+            'file_offsets' => $offsets,
+            'file_offset_default' => $offsetDefault,
         ],
         'items' => $items,
     ];
@@ -243,6 +256,7 @@ $app->get('/export', function (Request $request, Response $response) use ($envPa
     $authorQuery = trim((string) ($params['author'] ?? ''));
     $authorMode = (string) ($params['author_mode'] ?? 'keyword');
     $caseSensitive = ($params['case_sensitive'] ?? '0') === '1';
+    $wordMatch = ($params['word_match'] ?? '0') === '1';
 
     $fromYear = (int) ($params['from_year'] ?? 0);
     $fromMonth = (int) ($params['from_month'] ?? 0);
@@ -250,10 +264,10 @@ $app->get('/export', function (Request $request, Response $response) use ($envPa
     $toMonth = (int) ($params['to_month'] ?? 0);
 
     $errors = [];
-    $titleChecker = buildChecker($titleQuery, $titleMode, $caseSensitive, $errors, static function (array $record): string {
+    $titleChecker = buildChecker($titleQuery, $titleMode, $caseSensitive, $wordMatch, $errors, static function (array $record): string {
         return trim(($record['title'] ?? '') . ' ' . ($record['subtitle'] ?? ''));
     }, 'title');
-    $authorChecker = buildChecker($authorQuery, $authorMode, $caseSensitive, $errors, static function (array $record): string {
+    $authorChecker = buildChecker($authorQuery, $authorMode, $caseSensitive, $wordMatch, $errors, static function (array $record): string {
         return (string) ($record['author'] ?? '');
     }, 'author');
 
