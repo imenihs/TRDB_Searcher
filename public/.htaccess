@@ -1,0 +1,16 @@
+RewriteEngine On
+
+# Allow Let's Encrypt HTTP-01 challenge
+RewriteRule ^\.well-known/ - [L]
+
+# Block direct access to tr-book (if mapped)
+RewriteRule ^tr-book/ - [F,L]
+
+# API routing
+RewriteRule ^api/.*$ api/index.php [QSA,L]
+
+# Deny access to sensitive files if ever placed under public
+<FilesMatch "^(\.env|users\.json|users\.example\.json)$">
+  Require all denied
+</FilesMatch>
+

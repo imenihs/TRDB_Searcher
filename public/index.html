@@ -11,12 +11,25 @@
   <body>
     <div id="app" class="app" v-cloak>
       <header class="hero">
-        <div>
+        <div class="hero-top">
+          <div>
           <p class="eyebrow">Transistor Gijutsu Archive</p>
           <h1>トラ技収録内容サーチ</h1>
           <p class="lead">
             トランジスタ技術収録内容を検索。タイトル・著者・年月範囲で絞り込み。
           </p>
+          </div>
+          <div class="login-area">
+            <a v-if="auth.isAdmin" class="login-btn ghost admin-link" href="admin.html">管理画面</a>
+            <span v-if="!auth.loggedIn" class="tooltip">
+              <button type="button" class="login-btn" @click="auth.showLogin = true">ログイン</button>
+              <span class="tooltip-text">検索はログイン不要です</span>
+            </span>
+            <div v-else class="login-user">
+              <span>{{ auth.user }}</span>
+              <button type="button" class="login-btn ghost" @click="logout()">ログアウト</button>
+            </div>
+          </div>
         </div>
         <div class="stat">
           <div class="stat-num">{{ meta.total }}</div>
@@ -41,37 +54,47 @@
           </div>
         </div>
 
-        <div class="field">
-          <label>著者</label>
-          <input
-            v-model="query.author"
-            type="text"
-            placeholder="例: 山田 | 佐藤 !高橋"
-          />
-          <div class="field-row">
-            <select v-model="query.authorMode">
-              <option value="keyword">キーワード</option>
-              <option value="regex">正規表現</option>
-            </select>
-            <span class="hint">正規表現モードで高度な検索</span>
-          </div>
-        </div>
-
-        <div class="field range">
-          <label>年月範囲</label>
-          <div class="range-grid">
-            <div class="range-block">
-              <span class="range-label">From</span>
-              <div class="range-row">
-                <input v-model="query.fromYear" type="number" min="1950" max="2100" placeholder="年" />
-                <input v-model="query.fromMonth" type="number" min="1" max="12" placeholder="月" />
-              </div>
+        <div class="field-row-grid">
+          <div class="field author-field">
+            <label>著者</label>
+            <input
+              v-model="query.author"
+              type="text"
+              placeholder="例: 山田 | 佐藤 !高橋"
+            />
+            <div class="field-row">
+              <select v-model="query.authorMode">
+                <option value="keyword">キーワード</option>
+                <option value="regex">正規表現</option>
+              </select>
+              <span class="hint">正規表現モードで高度な検索</span>
             </div>
-            <div class="range-block">
-              <span class="range-label">To</span>
-              <div class="range-row">
-                <input v-model="query.toYear" type="number" min="1950" max="2100" placeholder="年" />
-                <input v-model="query.toMonth" type="number" min="1" max="12" placeholder="月" />
+          </div>
+
+          <div class="field toggle">
+            <label>大文字小文字</label>
+            <label class="case-toggle">
+              <input type="checkbox" v-model="query.caseSensitive" />
+              <span>区別する</span>
+            </label>
+          </div>
+
+          <div class="field range">
+            <label>年月範囲</label>
+            <div class="range-grid">
+              <div class="range-block">
+                <span class="range-label">From</span>
+                <div class="range-row">
+                  <input v-model="query.fromYear" type="number" min="1950" max="2100" placeholder="年" />
+                  <input v-model="query.fromMonth" type="number" min="1" max="12" placeholder="月" />
+                </div>
+              </div>
+              <div class="range-block">
+                <span class="range-label">To</span>
+                <div class="range-row">
+                  <input v-model="query.toYear" type="number" min="1950" max="2100" placeholder="年" />
+                  <input v-model="query.toMonth" type="number" min="1" max="12" placeholder="月" />
+                </div>
               </div>
             </div>
           </div>
@@ -90,13 +113,53 @@
         <div class="results-head">
           <div class="results-title">検索結果</div>
           <div class="results-meta">{{ meta.total }} 件 / {{ meta.returned }} 表示</div>
+          <div class="view-toggle">
+            <div class="page-size">
+              <span>表示件数</span>
+              <select v-model.number="pageSize" @change="page = 1; runSearch(true)">
+                <option :value="50">50</option>
+                <option :value="100">100</option>
+                <option :value="200">200</option>
+              </select>
+            </div>
+            <button type="button" class="btn ghost export-btn" :disabled="items.length === 0" @click="exportResults">
+              エクスポート
+            </button>
+            <button type="button" class="view-btn" :class="{ active: viewMode === 'card' }" @click="viewMode = 'card'">カード</button>
+            <button type="button" class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'">リスト</button>
+          </div>
+        </div>
+
+        <div class="pager" v-if="meta.total > 0">
+          <button type="button" class="pager-btn" :disabled="page <= 1" @click="goToPage(page - 1)">‹</button>
+          <button
+            v-for="p in pagerPages"
+            :key="p"
+            type="button"
+            class="pager-btn"
+            :class="{ active: p === page }"
+            @click="goToPage(p)"
+          >
+            {{ p }}
+          </button>
+          <button type="button" class="pager-btn" :disabled="page >= totalPages" @click="goToPage(page + 1)">›</button>
+          <div class="pager-input">
+            <input
+              type="number"
+              min="1"
+              :max="totalPages"
+              v-model.number="pageInput"
+              @change="jumpToPage"
+            />
+            <span>/ {{ totalPages }}</span>
+          </div>
         </div>
 
         <div class="error" v-if="errors.length">
           <div v-for="err in errors" :key="err">{{ err }}</div>
         </div>
 
-        <div class="cards">
+        <div class="cards" v-if="viewMode === 'card'">
           <article class="card" v-for="(item, index) in items" :key="index">
             <div class="card-top">
               <div class="card-date">{{ formatDate(item.year, item.month) }}</div>
@@ -108,10 +171,10 @@
               <span>{{ item.author || '著者不明' }}</span>
               <span>{{ formatPages(item.start_page, item.page_count) }}</span>
             </div>
-            <div class="card-actions" v-if="item.year && item.month">
+            <div class="card-actions" v-if="auth.loggedIn && item.year && item.month && item.pdf_exists">
               <a
                 class="card-link"
-                :href="pdfLink(item.year, item.month, item.start_page)"
+                :href="pdfLink(item.year, item.month, item.start_page, item.pdf_name)"
                 target="_blank"
                 rel="noopener"
               >
@@ -121,10 +184,70 @@
           </article>
         </div>
 
+        <div class="results-table" v-if="viewMode === 'list'">
+          <div class="table-row table-head">
+            <div>年月</div>
+            <div>タイトル</div>
+            <div>著者</div>
+            <div>ページ</div>
+            <div>PDF</div>
+          </div>
+          <div class="table-row" v-for="(item, index) in items" :key="index">
+            <div>{{ formatDate(item.year, item.month) }}</div>
+            <div>
+              <div class="table-title">{{ item.title }}</div>
+              <div class="table-subtitle" v-if="item.subtitle">{{ item.subtitle }}</div>
+              <div class="table-type">{{ item.type }}</div>
+            </div>
+            <div>{{ item.author || '著者不明' }}</div>
+            <div>{{ formatPages(item.start_page, item.page_count) }}</div>
+            <div>
+              <a v-if="auth.loggedIn && item.pdf_exists" class="table-link" :href="pdfLink(item.year, item.month, item.start_page, item.pdf_name)" target="_blank" rel="noopener">PDF</a>
+            </div>
+          </div>
+        </div>
         <div class="empty" v-if="!loading && items.length === 0">
           一致するデータがありません。
         </div>
+
+        <div class="pager" v-if="meta.total > 0">
+          <button type="button" class="pager-btn" :disabled="page <= 1" @click="goToPage(page - 1)">‹</button>
+          <button
+            v-for="p in pagerPages"
+            :key="p"
+            type="button"
+            class="pager-btn"
+            :class="{ active: p === page }"
+            @click="goToPage(p)"
+          >
+            {{ p }}
+          </button>
+          <button type="button" class="pager-btn" :disabled="page >= totalPages" @click="goToPage(page + 1)">›</button>
+          <div class="pager-input">
+            <input
+              type="number"
+              min="1"
+              :max="totalPages"
+              v-model.number="pageInput"
+              @change="jumpToPage"
+            />
+            <span>/ {{ totalPages }}</span>
+          </div>
+        </div>
       </section>
+
+      <div class="login-modal" v-if="auth.showLogin">
+        <div class="login-panel">
+          <div class="login-title">ログイン</div>
+          <input v-model="auth.username" type="text" placeholder="ユーザー名" @keydown.enter.prevent="login" />
+          <input v-model="auth.password" type="password" placeholder="パスワード" @keydown.enter.prevent="login" />
+          <div class="login-error" v-if="auth.error">{{ auth.error }}</div>
+          <div class="login-actions">
+            <button type="button" class="btn" @click="login()">ログイン</button>
+            <button type="button" class="btn ghost" @click="auth.showLogin = false">キャンセル</button>
+          </div>
+        </div>
+      </div>
     </div>
   </body>
 </html>

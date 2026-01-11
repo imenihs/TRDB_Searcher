@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TR 収録内容サーチ | 管理画面</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js" defer></script>
+    <script src="admin.js" defer></script>
+  </head>
+  <body>
+    <div id="app" class="app" v-cloak>
+      <header class="hero">
+        <div class="hero-top">
+          <div>
+            <p class="eyebrow">Transistor Gijutsu Archive</p>
+            <h1>ユーザ管理</h1>
+            <p class="lead">管理者向けのユーザ編集画面です。</p>
+          </div>
+          <div class="login-area">
+            <a class="login-btn ghost" href="index.html">検索へ戻る</a>
+            <button v-if="!auth.loggedIn" type="button" class="login-btn" @click="auth.showLogin = true">ログイン</button>
+            <div v-else class="login-user">
+              <span>{{ auth.user }}</span>
+              <button type="button" class="login-btn ghost" @click="logout()">ログアウト</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="admin-panel" v-if="auth.isAdmin">
+        <div class="admin-head">
+          <div class="admin-title">ユーザ管理</div>
+          <button type="button" class="btn" @click="openAdd()">ユーザ追加</button>
+        </div>
+        <div class="admin-error" v-if="admin.error">{{ admin.error }}</div>
+
+        <div class="admin-table">
+          <div class="admin-row admin-head-row">
+            <div>Admin</div>
+            <div>ユーザ名</div>
+            <div>更新</div>
+            <div>削除</div>
+          </div>
+          <div class="admin-row" v-for="user in admin.users" :key="user.username">
+            <div>
+              <label class="admin-toggle">
+                <input type="checkbox" v-model="user.is_admin" :disabled="true" />
+              </label>
+            </div>
+            <div class="admin-username">{{ user.username }}</div>
+            <div>
+              <button type="button" class="btn ghost" @click="openEdit(user)">更新</button>
+            </div>
+            <div>
+              <button type="button" class="btn ghost" :disabled="user.username === auth.user" @click="deleteUser(user)">削除</button>
+            </div>
+          </div>
+        </div>
+        <div class="admin-footer">
+          <button type="button" class="btn" @click="openAdd()">ユーザ追加</button>
+        </div>
+      </section>
+
+      <div class="admin-empty" v-else>
+        管理者権限が必要です。ログイン後に権限が付与されているか確認してください。
+      </div>
+
+      <div class="login-modal" v-if="admin.showDialog">
+        <div class="login-panel admin-dialog-panel">
+          <div class="login-title">{{ admin.dialogTitle }}</div>
+          <input v-model="admin.form.username" type="text" class="admin-dialog-input" placeholder="ユーザ名" />
+          <input v-model="admin.form.password" type="password" class="admin-dialog-input" placeholder="パスワード" />
+          <input v-model="admin.form.confirmPassword" type="password" class="admin-dialog-input" placeholder="パスワード（確認）" />
+          <label class="admin-toggle">
+            <input type="checkbox" v-model="admin.form.is_admin" />
+            <span>Admin</span>
+          </label>
+          <div class="login-error" v-if="admin.dialogError">{{ admin.dialogError }}</div>
+          <div class="login-actions">
+            <button type="button" class="btn" @click="submitDialog()">{{ admin.dialogAction }}</button>
+            <button type="button" class="btn ghost" @click="closeDialog()">キャンセル</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="login-modal" v-if="admin.showDeleteConfirm">
+        <div class="login-panel admin-dialog-panel">
+          <div class="login-title">削除の確認</div>
+          <p class="admin-dialog-text">ユーザ「{{ admin.deleteTarget }}」を削除しますか？</p>
+          <div class="login-actions">
+            <button type="button" class="btn" @click="confirmDelete()">削除</button>
+            <button type="button" class="btn ghost" @click="cancelDelete()">キャンセル</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="login-modal" v-if="auth.showLogin">
+        <div class="login-panel">
+          <div class="login-title">ログイン</div>
+          <input v-model="auth.username" type="text" placeholder="ユーザー名" @keydown.enter.prevent="login" />
+          <input v-model="auth.password" type="password" placeholder="パスワード" @keydown.enter.prevent="login" />
+          <div class="login-error" v-if="auth.error">{{ auth.error }}</div>
+          <div class="login-actions">
+            <button type="button" class="btn" @click="login()">ログイン</button>
+            <button type="button" class="btn ghost" @click="auth.showLogin = false">キャンセル</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

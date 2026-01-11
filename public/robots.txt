@@ -1,0 +1,2 @@
+User-agent: *
+Sitemap: https://trdb-searcher.rwc.0t0.jp/sitemap.xml
